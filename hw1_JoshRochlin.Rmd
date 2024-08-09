@@ -1,0 +1,144 @@
+---
+title: "Homework 1"
+author: "Josh Rochlin"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, eval=T, message=F, error=F, comment=NA)
+```
+
+# Intro to Time Series Data
+
+
+## Part 0 - Packages
+
+Please load any packages used in this script in the section below.
+
+```{r}
+library(forecast)
+library(astsa)
+library(TSA)
+```
+
+
+## Part 1 - Data
+
+You will need the following datasets for this assignments. All were downloaded from the Federal Reserve Economic Data site (https://fred.stlouisfed.org/). They represent total patents granted, total construction spending, and total state and local tax revenues
+
+```{r}
+# Total Patents Granted
+patents = read.csv('https://dxl-datasets.s3.amazonaws.com/data/fredstl_total_patents_granted.csv')
+
+# Total Construction Spending
+construction = read.csv('https://dxl-datasets.s3.amazonaws.com/data/fredstl_total_construction_spending.csv')
+
+# State and Local Tax Revenues
+taxrevs = read.csv('https://dxl-datasets.s3.amazonaws.com/data/fredstl_state_and_local_tax_revenues.csv')
+```
+
+\newpage
+
+## Part 2 - `ts()` and Plotting
+
+Please convert each to a time series object using the `ts()` function with appropriate `start` and `frequency` options, if needed. Plot each time series and comment (trend, seasonality, any outliers or shifts, variance issues, etc?).
+
+__Patents__
+```{r}
+patentsgranted = ts(patents$PATENTUSALLTOTAL, start=c(1992, 1) )
+autoplot(patentsgranted)
+patentsgranted
+
+```
+
+*The total patents granted time series has a long, upward trend from 1992 to 2020. There is no seasonality.*
+
+__Construction__
+```{r}
+constructionspending = ts(construction$TTLCON, start=c(1993, 1) , frequency=12)
+autoplot(constructionspending)
+constructionspending
+```
+
+*The construction spending time series shows an upward trend from 1993 to about 2008. The 2008 housing crisis can be attributed to the short downward trend from 2008 to 2011. Construction spending appears to increase in the warm summer months and decrease in cold winter months, indicating strong seasonality. A cyclic pattern exists as well.*
+
+__Tax Revenues__
+```{r}
+taxrevenue = ts(taxrevs$QTAXTOTALQTAXCAT1USNO, start=c(1992, 1) , frequency=4)
+autoplot(taxrevenue)
+taxrevenue
+```
+
+*The tax revenue time series shows an upward trend from 1992 to 2024. There is strong seasonality as well, with increases likely due to tax season. Variance issues can be existent as well.*
+
+\newpage
+
+## Part 3 - `tslm()`
+
+Model each of the time series you created in Part 2 with a time series linear regression model. For each, please plot the series and overlay your fitted model.
+
+__Patents__
+```{r}
+m = tslm(patentsgranted ~ poly(trend,2) )
+
+autoplot(patentsgranted) + 
+  autolayer(m$fitted.values)
+```
+
+
+__Construction__
+```{r}
+m = tslm(constructionspending ~ poly(trend, 7) + season)
+
+autoplot(constructionspending) + 
+  autolayer(m$fitted.values) 
+```
+
+
+__Tax Revenues__
+```{r}
+m = tslm(taxrevenue ~ poly(trend, 4) + season)
+
+autoplot(taxrevenue) + 
+  autolayer(m$fitted.values)
+```
+
+\newpage
+
+## Part 4 - `forecast()`
+
+In the following parts, you will take the construction spending series and split it into training and testing sets, build a model using the training set, forecast over the test period, and finally plot the data with forecast values to see how you did.
+
+__train/test__: Please create two new time series objects using the `window()` function - __construction_train__, __construction_test__. The training set should end at 2023 (you can choose where it begins) and the testing set should start in 2023 (it will only contain the 11 months of 2023 from January to November).
+
+```{r}
+construction_train = window(constructionspending, end=2023)
+construction_test = window(constructionspending, start=2023)
+```
+
+
+
+__Model__: Use time series linear regression to model the training data.
+
+```{r}
+m = tslm(construction_train ~ poly(trend, 7) + season)
+autoplot(construction_train)
+```
+
+__Forecast__: Using the model you just developed, forecast the next 11 months.
+
+```{r}
+f = forecast(m, h=11)
+m = tslm(construction_train ~ poly(trend, 7) + season)
+autoplot(construction_train) +
+  autolayer(f)
+```
+
+__Visualize and Assess__: Plot the original time series and overlay your forecast. How did you do? Note that I am just asking you to comment on the forecast, you do not need to report accuracy or error metrics, which we will cover later.
+
+```{r}
+autoplot(constructionspending) +
+  autolayer(m$fitted.values) +
+  autolayer(f)
+```
+*The forecast for the next 11 months seems consistent with the original time series. It follows a similar trend and shows a cyclic pattern.*

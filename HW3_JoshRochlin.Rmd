@@ -1,0 +1,182 @@
+---
+title: "MAS 640 - Homework 3"
+author: "Josh Rochlin"
+date: "Due Friday, Feb 23rd"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, comment=NA, message=F, warning=F, eval=T)
+library(TSA)
+library(astsa)
+library(forecast)
+```
+
+KNIT YOUR DOCUMENT FREQUENTLY!
+
+# Part 0
+
+1. We discussed the process of "overfitting" an ARIMA model in class. Please describe what this means and what you hope to achieve. Your discussion should include talk about the model orders ($p$ and $q$), coefficient estimates and their significance, residual diagnostics, and AIC/BIC values. Finally, if we already determined an appropriate model order via ACF/PACF, why do we even need to do all of this overfitting?
+
+*The process of "overfitting" an ARIMA model involves selecting different values for $p$, $d$, and $q$ that will result in a more complicated model than the originally considered model. The addition of AR and/or MA terms can make a model better or worse. Selecting higher values of $p$ and $q$ may reduce the significance of AR and MA terms. For instance, if I add an additional MA term to my original MA(1) model, and the additional term is not significant, I would not need a more complicated model. For residual diagnostics, we look for four components: random standardized residuals, the ACF of residuals remaining within boundary, a normal Q-Q plot, and p-value points above the boundary line in the Ljung-Box test. AIC/BIC values are used to compare models. Models with a lower AIC/BIC may indicate a better fit.  If an appropriate model order has been determined via ACF/PACF, we still need to overfit because the plots may not provide a clear-cut picture of the best fitting model choice. Overfitting can be useful for exploring different alternatives to original models, but it should be approached with caution.*
+
+2. In class we looked at two approaches to assessing forecast performance. The first involved splitting the time series into train and test periods, building the model on the training period and forecasting the test period, and then seeing how we did over that period - via the `accuracy()` function. The second was through time series cross validation - via the `tsCV()` function. How would you describe the difference between these two approaches? Which is better? Why? 
+
+*Forecasting through train/test and `tscv()` differs in complexity. The training set includes all available data in a model, whereas the test set evaluates how well a model will forecast on new, unforeseen data. Because the `accuracy()` function is based on a single test set, it may be difficult to draw definitive conclusions. This is where `tscv()` into play. As a more intense approach to forecasting, `tscv()` forecasts across different subsets of the training data. Although `tscv()` can forecast far into the future, its reliability decreases with time. `tscv()` is the better approach because we are able to conduct a more honest evaluation of a model.*
+
+
+# ARIMA vs ARIMAX
+
+The dataset `food` contains quarterly data related to sales of meat and fish in the UK from 1997 through 2022. In this part of the homework, you will compare ARIMA and ARIMAX models for forecasting sales of meat.
+
+```{r}
+food = read.csv('https://dxl-datasets.s3.amazonaws.com/data/quarterly_food_uk.csv')
+```
+
+Begin by defining meat and fish as time series objects.
+
+```{r}
+meat = ts(food$meat, start=c(1997, 1), frequency = 4)
+fish = ts(food$fish, start = c(1997, 1), frequency = 4)
+
+```
+
+\newpage 
+
+# Part 1 - ARIMA
+
+1. Investigate the meat sales series and determine if you need to difference or transform the data. 
+
+```{r}
+autoplot(meat)
+autoplot(diff(diff(meat), lag =4))
+```
+
+2. Investigate the relevant autocorrelation plots and suggest a model.
+
+```{r}
+acf2(diff(diff(meat), lag = 4))
+eacf(diff(diff(meat), lag = 4))
+
+```
+*I suggest a nonseasonal AR(1) and a seasonal ARMA(1,1).*
+
+3. Fit the model you proposed in 2.
+
+```{r}
+m_arima = Arima(meat, order=c(1, 1, 0), seasonal=list(order=c(1, 1, 1), period=4), include.constant=T)
+summary(m_arima)
+```
+
+4. Check assumptions via residual diagnostics. How does the model look?
+
+```{r}
+sarima(meat, 1, 1, 0, 1, 1, 1, 4)
+```
+*The model looks decent. The Q-Q plot looks normal, but could be better. Most of the p-values are above the boundary line. The nonseasonal AR term and the seasonal MA term are significant, but the seasonal AR term is not significant.*
+
+
+5. Overfit by trying some larger models (adding $p$ or $q$). Do you find any improvements?
+
+```{r}
+sarima(meat, 2, 1, 1, 1, 1, 1, 4)
+sarima(meat, 1, 1, 2, 2, 1, 1, 4)
+sarima(meat, 2, 1, 2, 1, 1, 2, 4)
+sarima(meat, 1, 1, 2, 1, 1, 2, 4)
+```
+*Although each of these models brought all of their respective p-values above the boundary line, I still prefer my original model because it holds the lowest BIC value.*
+
+
+6. What model does `auto.arima()` suggest? If it differs from the model you arrived at, which do you prefer, and why?
+
+```{r}
+auto.arima((diff(diff(meat), lag = 4)))
+sarima(meat, 1, 0, 1, 0, 0, 1, 4)
+```
+*auto.arima suggests a nonseasonal ARMA(1, 1) and a seasonal MA(1) model with no differencing. The auto.arima model has a higher BIC and none of the p-values are above the boundary line. Even though all of the coefficients are significant, I still prefer my original model.*
+
+7. After everything - ACF/PACF for model specification, overfitting, `auto.arima()`, what is your final model?
+
+**m_arima = Arima(meat, order=c(1, 1, 0), seasonal=list(order=c(1, 1, 1), period=4), include.constant=T)**
+
+8. Cross validate your model and report RMSE.
+
+```{r}
+rmse = function(e){
+  sqrt(mean(e^2, na.rm=T))
+}
+
+f_arima = function(x, h){
+  Arima(x, order=c(1, 1, 0), seasonal=list(order=c(1, 1, 1), period=4), include.constant = T) %>%
+    forecast(h=h)
+}
+
+e_arima = tsCV(meat, f_arima, h=4)
+rmse(e_arima)
+
+```
+
+9. Using your final model, please forecast meat sales for the four quarters of 2023.
+
+```{r}
+m_arima = Arima(meat, order=c(1, 1, 0), seasonal=list(order=c(1, 1, 1), period=12), include.constant=T)
+f = forecast(m_arima, h = 4)
+f
+```
+
+
+\newpage
+
+
+# Part 2 - ARIMAX
+
+1. Plot the relationship between meat and fish sales. Is there a relationship between meat and fish sales? Does linear regression seem appropriate?
+
+```{r}
+plot(food$meat ~ food$fish)
+m_lm = tslm(meat ~ fish)
+summary(m_lm)
+plot(food$meat ~ food$fish)
+abline(m_lm)
+```
+
+*There seems to be a positive linear relationship between meat and fish. Linear regression seems appropriate.*
+
+
+2. Fit a linear regression using fish to predict meat. Report the $R^2$ for this model.
+
+```{r}
+reg=lm(meat ~ fish)
+summary(reg)
+```
+*The $R^2$ is .89.*
+
+3. Determine a model for the residuals. 
+
+```{r}
+autoplot(m_lm$residuals)
+autoplot(diff(diff(m_lm$residuals), lag =4))
+acf2(diff(diff(m_lm$residuals), lag =4))
+eacf(diff(diff(m_lm$residuals, lag =4)))
+sarima(m_lm$residuals, 0, 1, 1, 0, 1, 1, 4)
+```
+
+4. You now have an ARIMAX model - linear model of meat as a function of fish + ARIMA model on the residuals. Cross validate this model and report the RMSE for forecasting 4 quarters ahead.
+
+```{r}
+forecast_function_arimax = function(x, h, xreg, newxreg){
+  Arima(x, order=c(0, 1, 1), seasonal=list(order=c(0, 1, 1), period=4), xreg=xreg, include.constant=T) %>%
+    forecast(h=h, xreg=newxreg)
+}
+
+e_arimax = tsCV(meat, forecast_function_arimax, h = 4, xreg=fish)
+rmse(e_arimax)
+```
+
+5. Which model - ARIMA or ARIMAX - had lower RMSE?
+
+*The ARIMAX model has the lower RMSE.*
+
+6. What issue do you encounter if you want to forecast the four quarters of 2023? What options do you have for dealing with this? NOTE: I am not asking you to do the forecast, I just want you to talk through issues that arise when forecasting using ARIMAX.
+
+*ARIMAX models create forecasting issues because they include exogenous variables. By evaluating past data, ARIMAX models have trouble forecasting far into the future, and can become susceptible to drastic changes in exogenous variables. It is important to select exogenous variables that are not highly correlated in order to prevent multicollinearity. To deal with these challenges, a model should be rigorously evaluated through finding the appropriate p, d, and q terms, and residual diagnostics.* 

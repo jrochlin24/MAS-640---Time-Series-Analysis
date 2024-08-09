@@ -1,0 +1,254 @@
+---
+title: "MAS 640 - Homework 2"
+author: "Josh Rochlin"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning=F, message=F, comment=NA, eval=T)
+```
+
+## Part 0 - Packages
+
+Please load any (and only) packages used in this document in the space below.
+
+```{r}
+library(forecast)
+library(TSA)
+library(astsa)
+library(ggplot2)
+```
+
+## Part 1
+
+The dataset `tsData.csv` contains 10 simulated time series. You can assume that they are measured daily and have no seasonal component. Determine the appropriate model order - $p, d, q$ - for $y_1, y_2, ..., y_{10}$. Please report any relevant plots and state why you chose the $p, d, q$ that you did.  
+
+```{r}
+tsData = read.csv('https://dxl-datasets.s3.amazonaws.com/mas646/tsData.csv')
+```
+
+$y_1$ - $1, 0, 0$
+
+_Based on the ACF and PACF plots, I chose an AR(1) model because the ACF trails off and the PACF cuts off after one spike._
+
+```{r}
+y1 = ts(tsData$y1)
+autoplot(y1)
+acf2(y1)
+```
+
+
+$y_2$ - $0, 1, 2$
+
+_Based on the ACF and PACF plots, I chose an MA(2) model because the ACF cuts off after the second spike and the PACF trails off. I took two differences in order to remove the trend and make the series more flat._
+
+```{r}
+y2 = ts(tsData$y2)
+autoplot(y2)
+autoplot(diff(diff(y2)))
+acf2(diff(diff(y2)))
+```
+
+$y_3$ - $0, 1, 1$
+
+_Based on the ACF and PACF plots, I chose an MA(1) model because the ACF cuts off after one spike and the PACF trails off. I took two differences to remove the trend and make the series more flat._
+
+```{r}
+y3 = ts(tsData$y3)
+autoplot(y3)
+autoplot(diff(diff(y3)))
+acf2(diff(diff(y3)))
+```
+
+$y_4$ - $0, 1, 3$
+
+_Based on the ACF and PACF plots, I chose an MA(3) model because the ACF cuts off after the third spike and the PACF trails off. I took two differences to remove the trend and make the series more flat._
+
+```{r}
+y4 = ts(tsData$y4)
+autoplot(y4)
+autoplot(diff(diff(y4)))
+acf2(diff(diff(y4)))
+```
+
+$y_5$ - $0, 1, 2$
+
+_Based on the ACF and PACF plots, I chose an MA(2) model because the ACF cuts off after the second spike and the PACF trails off. I took one difference to remove the trend and flatten the time series._
+
+```{r}
+y5 = ts(tsData$y5)
+autoplot(y5)
+autoplot(diff(y5))
+acf2(diff(y5))
+```
+
+$y_6$ - $0, 0, 1$
+
+_Based on the ACF and PACF plots, I chose an MA(1) model because the ACF cuts off after one spike and the PACF trails off..._
+
+```{r}
+y6 = ts(tsData$y6)
+autoplot(y6)
+acf2(y6)
+eacf(y6)
+```
+
+$y_7$ - $2, 1, 1$
+
+_I chose an ARIMA (2, 1, 1) model because both the ACF and the PACF appear to be trailing off. I took two differences to remove the trend and make the series more flat._
+
+```{r}
+y7 = ts(tsData$y7)
+autoplot(y7)
+autoplot(diff(diff(y7)))
+acf2(diff(diff((y7))))
+```
+
+$y_8$ $0, 1, 2$
+
+_Based on the EACF plot, I chose an MA(2) model. The ACF and PACF plots were difficult to read. I took three differences to remove the trend and make the series more flat. ..._
+
+```{r}
+y8 = ts(tsData$y8)
+autoplot(y8)
+autoplot(diff(diff(diff(y8))))
+acf2(diff(diff(diff(y8))))
+eacf(diff(diff(diff(y8))))
+```
+
+$y_9$ - $0, 1, 3$
+
+_Based on the ACF and PACF plots, I chose an MA(3) model because the ACF cuts off after the third spike and the PACF trails off. I took two differences to remove the trend and make the series more flat..._
+
+```{r}
+y9 = ts(tsData$y9)
+autoplot(y9)
+autoplot(diff(diff(y9)))
+acf2(diff(diff(y9)))
+```
+
+$y_{10}$ - $2, 1, 1$
+
+_Based on the ACF and PACF plots, I chose an ARIMA (2,1,1) model because the ACF and PACF both trail off. The ACF starts to trail off after the second spike and the PACF starts to trail off after the first spike. I took a difference to remove the trend and flatten the series._
+
+```{r}
+y10 = ts(tsData$y10)
+autoplot(y10)
+autoplot(diff(y10))
+acf2(diff(y10))
+```
+
+
+
+## Part 2
+
+Data for this part represents monthly demand values from January 2011 through November 2023. In this section, you will implement *everything* that we've discussed regarding Seasonal ARIMA models in the course thus far.
+
+```{r}
+demand = read.csv('https://dxl-datasets.s3.amazonaws.com/data/monthly_demand.csv')
+```
+
+### Question 1
+
+Begin by plotting the time series and converting to stationary. Be sure to check if a transformation is needed. Please discuss what you did to convert the series to stationary.
+
+```{r}
+monthly_demand = ts(demand$demand, start=c(2011, 1), frequency = 12)
+autoplot(monthly_demand)
+autoplot(diff(monthly_demand, lag =12))
+autoplot(diff(diff(monthly_demand, lag =12)))
+
+```
+
+*I took two differences to convert the series to stationary. After the first difference, a small downward trend still existed from 2022 to 2023. The second difference removed the trend and flattened the series. I also have a difference at lag 12 because this is a monthly series.*
+
+
+### Question 2
+
+Identify a candidate model based on the relevant autocorrelation plots. Please state the model you have found.
+
+```{r}
+acf2( diff(diff(monthly_demand), lag = 12) )
+eacf(diff(diff(monthly_demand), lag = 12))
+```
+
+*I have found a nonseasonal MA(2) with a seasonal MA(1) model.*
+
+### Question 3
+
+Plot the original time series and overlay the fitted values from the model you identified in Question 2.
+
+```{r}
+m_arima = Arima(monthly_demand, order=c(0, 1, 2), seasonal = list( order=c(0, 1, 1), period=12), include.constant=T)
+autoplot(monthly_demand) +
+  autolayer(m_arima$fitted)
+```
+
+### Question 4
+
+Perform the appropriate residual analysis. Explicitly state any assumption being tested, the corresponding null and alternative hypotheses, and your findings. What do these findings suggest about the appropriateness of your model?
+
+```{r}
+sarima(monthly_demand, 0, 1, 2, 0, 1, 1, 12)
+sarima(monthly_demand, 1, 1, 2, 0, 1, 2, 12)
+```
+
+*My model (0, 1, 2, 0, 1, 1) seems appropriate based on the residual diagnostics. The nonseasonal MA(2) and seasonal MA(1) are both significant, validating the independence assumption. The Q-Q Plot looks decent, but it could be more normal. This model also has a slightly lower BIC than the other model assumption (1, 1, 2, 0, 1, 2).*
+
+
+**NOTE: In the next few questions I will ask you to cross validate your model in both ways we've discussed in class. First, using a single train/test split, then conducting time series cross validation via the `tsCV` function. In practice, you would do one of these, not both. I'm asking you to do both here for the practice and to see the difference in the two procedures.**
+
+### Question 5 
+
+Let's move into investigating how well your model forecasts. Split the data into train/test sets, using everything through December 2022 in the training set and all of 2023 in the testing set.
+
+Fit the model you identified previously (i.e. you do not have to redo the acf/pacf/eacf stuff) to the training set, forecast over the test period, and obtain the mean absolute percent error (MAPE) from the `accuracy` function.
+
+```{r}
+monthly_demand_train = window(monthly_demand, end = 2022)
+monthly_demand_test = window(monthly_demand, start = c(2023, 1))
+m = Arima(monthly_demand_train, order=c(0, 1, 2), seasonal = list( order=c(0, 1, 1), period=12), include.constant=T)
+f = forecast(m, h=12)
+accuracy(f, monthly_demand_test)
+```
+
+*MAPE = 1.918776*
+
+### Question 6
+
+Now cross validate your model via the `tsCV` function to perform a more rigorous approach to cross validation. Please report the RMSE for 1, 2, 3, and 4 month ahead forecasts.
+
+```{r}
+f_arima = function(x, h){
+  Arima(x, order=c(0, 1, 2), seasonal = list( order=c(0, 1, 1), period=12), include.constant=T) %>%
+    forecast(h=h)  
+}
+e_arima = tsCV(monthly_demand, f_arima, h=4)
+sqrt(mean(e_arima[ , 1]^2, na.rm=T))
+sqrt(mean(e_arima[ , 2]^2, na.rm=T))
+sqrt(mean(e_arima[ , 3]^2, na.rm=T))
+sqrt(mean(e_arima[ , 4]^2, na.rm=T))
+```
+
+* $RMSE_1 = 15773.47$
+* $RMSE_2 = 20989.31$
+* $RMSE_3 = 22353.81$
+* $RMSE_4 = 23128.2$
+
+### Question 7
+
+Using your final model, forecast through December 2024. Plot the original series and overlay your forecasts. Please report your forecast for December 2024 below.
+
+```{r}
+m = Arima(window(monthly_demand, end = 2024, 12), order=c(0, 1, 2), seasonal = list( order=c(0, 1, 1), period=13), include.constant=T)
+f = forecast(m, h = 13)
+autoplot(monthly_demand) + 
+  autolayer(m_arima$fitted) +
+  autolayer(f)
+f
+
+```
+
+*Forecasted demand for December 2024 = 641,356.1*
+
